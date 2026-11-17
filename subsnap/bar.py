@@ -1,6 +1,6 @@
 """悬浮条：像输入法状态栏那样常驻，三个图标按钮。
 
-  [伊丽莎白] [鼠标=识别一次] [取景框=换字幕区] [● 录制 / REC n] [⋮⋮]
+  [伊丽莎白] [鼠标=识别一次] [取景框=换字幕区] [中A=语言：双语→中文→外文] [● 录制 / REC n] [⋮⋮]
 
 - 伊丽莎白和右边点点都是拖动把手，位置记在 state.json。
 - 点按钮不抢焦点（视频播放器的键盘焦点不丢）。
@@ -65,6 +65,23 @@ def icon_region(size):
     return _done(im, size)
 
 
+def icon_lang(size, mode):
+    """语言按钮：双语「中A」/ 只留中文「中」/ 只留外文「A」。字高和其他图标的外框一致。"""
+    im, s = _canvas(size)
+    d = ImageDraw.Draw(im)
+    glyphs = {"both": "中A", "zh": "中", "foreign": "A"}[mode]
+    h = s * GLYPH * (0.78 if mode == "both" else 1.0)  # 两个字并排时缩一点，免得太宽
+    fonts = {"中": ImageFont.truetype("msyhbd.ttc", round(h * 1.15)), "A": ImageFont.truetype("arialbd.ttf", round(h * 1.36))}
+    boxes = [fonts[g].getbbox(g) for g in glyphs]
+    gap = s * 0.03
+    total = sum(b[2] - b[0] for b in boxes) + gap * (len(glyphs) - 1)
+    x = (s - total) / 2
+    for g, (l, t, r, b) in zip(glyphs, boxes):
+        d.text((x - l, s / 2 - (t + b) / 2), g, font=fonts[g], fill=FG)
+        x += (r - l) + gap
+    return _done(im, size)
+
+
 def icon_record(size):
     im, s = _canvas(size)
     r = s * GLYPH / 2
@@ -101,7 +118,7 @@ def label_rec(size, count):
 
 
 class Bar:
-    def __init__(self, root, state, on_capture, on_region, on_record):
+    def __init__(self, root, state, on_capture, on_region, on_record, on_lang):
         self.root = root
         self.state = state
         self.scale = root.winfo_fpixels("1i") / 96
@@ -117,7 +134,7 @@ class Bar:
         inner = tk.Frame(w, bg=BG, padx=round(3 * self.scale), pady=round(3 * self.scale))
         inner.pack(padx=1, pady=1)
 
-        # 从左到右：伊丽莎白（也能拖）、三个按钮、拖动点点
+        # 从左到右：伊丽莎白（也能拖）、四个按钮、拖动点点
         handles = []
         if MASCOT.exists():
             size = self.btn + 2 * round(3 * self.scale)  # 和按钮（含内边距）一样高
@@ -127,6 +144,9 @@ class Bar:
             handles.append(self.mascot)
         self.b_cap = self._button(inner, "cap", ImageTk.PhotoImage(icon_cursor(self.btn)), on_capture)
         self.b_reg = self._button(inner, "reg", ImageTk.PhotoImage(icon_region(self.btn)), on_region)
+        self._lang_imgs = {m: ImageTk.PhotoImage(icon_lang(self.btn, m)) for m in ("both", "zh", "foreign")}
+        mode = state["lang_mode"] if state["lang_mode"] in self._lang_imgs else "both"
+        self.b_lang = self._button(inner, "lang", self._lang_imgs[mode], on_lang)
         self.b_rec = self._button(inner, "rec", ImageTk.PhotoImage(icon_record(self.btn)), on_record)
         self._rec_idle = self._imgs["rec"]
         self.grip = self._label(inner, ImageTk.PhotoImage(icon_grip(round(self.btn * 0.45), self.btn)), cursor="fleur")
@@ -203,6 +223,9 @@ class Bar:
             self.win.withdraw()
         self.win.update_idletasks()
         self._update_rect()
+
+    def set_lang(self, mode):
+        self.b_lang.configure(image=self._lang_imgs[mode])
 
     def set_recording(self, on, count=0):
         self.recording, self.count = on, count

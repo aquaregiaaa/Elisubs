@@ -21,7 +21,7 @@ from .logbook import _same
 log = logging.getLogger("subsnap")
 
 INTERVAL = 0.3      # 秒
-IDLE_STOP = 600     # 这么多秒没有新字幕就自动停（视频暂停、看完了）
+IDLE_STOP = 120     # 这么多秒没有新字幕就自动停（视频暂停、看完了）；Kr 定的 2 分钟
 STABLE = 0.15       # 相邻两帧笔画图差异 ≤ 这个 = 字幕稳定了
 SAME = 0.35         # 和上次识别的笔画图差异 ≤ 这个 = 还是同一句
 MIN_INK = 0.002     # 笔画像素占比低于这个 = 框里没字幕

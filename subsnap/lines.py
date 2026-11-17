@@ -16,7 +16,30 @@ MIN_SCORE = 0.5  # 低于这个置信度的多半是背景里的杂纹
 
 
 def _is_cjk_line(s):
+    """有两个以上汉字就算中文行（日文行也含汉字，所以中日双语分不开）。"""
     return len(_HAN.findall(s)) >= 2
+
+
+LANG_MODES = ("both", "zh", "foreign")  # 悬浮条语言按钮依次切换
+
+
+def filter_lang(text, mode):
+    """按语言留行：both 都留 / zh 只留中文行 / foreign 只留外文行。"""
+    if mode == "both" or not text:
+        return text
+    keep = [ln for ln in text.splitlines() if _is_cjk_line(ln) == (mode == "zh")]
+    return "\n".join(keep)
+
+
+def paragraph(sentences):
+    """录制结束时把多句拼成一段：中文行连成一段、外文行连成一段（句间空格），两段之间空一行。"""
+    zh, fg = [], []
+    for s in sentences:
+        for ln in s.splitlines():
+            ln = ln.strip()
+            if ln:
+                (zh if _is_cjk_line(ln) else fg).append(ln)
+    return "\n\n".join(p for p in (" ".join(zh), " ".join(fg)) if p)
 
 
 def _join(a, b):

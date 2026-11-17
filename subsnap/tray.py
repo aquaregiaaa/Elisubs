@@ -36,6 +36,16 @@ def _icon(paused, recording=False):
     return img
 
 
+class _LeftClickMenuIcon(pystray.Icon):
+    """左键也弹菜单（pystray 默认只有右键弹菜单，左键执行默认动作）。"""
+
+    def _on_notify(self, wparam, lparam):
+        from pystray._util import win32
+        if lparam == win32.WM_LBUTTONUP:
+            lparam = win32.WM_RBUTTONUP
+        super()._on_notify(wparam, lparam)
+
+
 def _short(s, n=28):
     s = s or "无标题"
     return s if len(s) <= n else s[: n - 1] + "…"
@@ -74,23 +84,32 @@ class Tray:
             n = sync.pending
             return "写入 Notion" + (f"（{n} 条待发）" if n else "")
 
+        def lang_item(mode, text):
+            return Item(text, do(lambda: app.set_lang(mode)), checked=lambda i: st["lang_mode"] == mode, radio=True)
+
+        def update_text(item):
+            return f"下载新版本 {app.update_available}" if app.update_available else "检查更新"
+
         menu = Menu(
             Item("重新框选字幕区", do(lambda: app.trigger(reselect=True))),
             Item("录制字幕", do(app.toggle_watch), checked=lambda i: app.watcher.running),
+            Item("识别语言", Menu(lang_item("both", "双语"), lang_item("zh", "只留中文"), lang_item("foreign", "只留外文"))),
             Item("隐藏悬浮窗", do(app.toggle_bar), checked=lambda i: st["bar_hidden"]),
             Menu.SEPARATOR,
             Item(notion_text, do(app.toggle_notion), checked=lambda i: st.notion_on),
             Item("目标页面", Menu(target_items)),
-            Item("暂停热键", do(app.toggle_pause), checked=lambda i: st["paused"]),
+            Item("暂停快捷键", do(app.toggle_pause), checked=lambda i: st["paused"]),
             Item("开机自启", do(app.toggle_autostart), checked=lambda i: autostart.enabled()),
             Menu.SEPARATOR,
             Item("打开今天的记录", do(app.open_today)),
             Item("打开记录文件夹", do(app.open_logs)),
-            Item("打开配置文件", do(app.open_config)),
+            Item("更改记录保存位置…", do(app.change_log_dir)),
+            Item("设置…", do(app.open_settings)),
+            Item(update_text, do(app.check_update)),
             Menu.SEPARATOR,
             Item("退出", do(app.quit)),
         )
-        self.icon = pystray.Icon("subsnap", _icon(st["paused"]), "字幕识别", menu)
+        self.icon = _LeftClickMenuIcon("subsnap", _icon(st["paused"]), "字幕识别", menu)
         sync.on_pages = self.refresh
 
     def start(self):
