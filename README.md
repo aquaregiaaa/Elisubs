@@ -1,4 +1,4 @@
-# subsnap · 看视频时一键识别字幕
+# Elisubs · 看视频时一键识别字幕
 
 看视频时想记下某句字幕？点一下悬浮条上的按钮，字幕框里的字就进了剪贴板，在笔记软件里直接粘贴。
 双语字幕也行：出来就是「中文一行、外文一行」。
@@ -13,8 +13,8 @@
 
 ## 下载和使用（Windows 10 2004 及以上 / Windows 11）
 
-1. 到 [Releases](../../releases) 下载 `subsnap-windows.zip`，解压到任意位置（比如 `D:\Tools\subsnap`）。
-2. 双击 `subsnap.exe`。屏幕右下角会出现悬浮条，任务栏右侧也会多一个托盘图标
+1. 到 [Releases](../../releases) 下载 `Elisubs-windows.zip`，解压到任意位置（比如 `D:\Tools\Elisubs`）。
+2. 双击 `Elisubs.exe`。屏幕右下角会出现悬浮条，任务栏右侧也会多一个托盘图标
    （Windows 11 可能把它收在 ^ 里，拖到任务栏上就能常驻显示）。
 3. 第一次用：点 **取景框** 按钮，在视频字幕的位置拖一个框。框会被记住，以后就不用再拖了。
 4. 之后每句字幕点 **鼠标** 按钮（或按 **Alt+S**），右上角提示「已复制」，粘贴即可。
@@ -49,7 +49,7 @@
 - **当天记录**：默认在 `data\logs\年-月-日.md`（设置里可以改到任何文件夹，比如笔记软件的库），
   换了视频会自动写一个 `## 视频标题` 小标题。
 - **去重**：同一个视频里记过的句子不会再记（OCR 差一两个字也认得出是同一句）。
-- 程序放在没有写入权限的文件夹（比如 `C:\Program Files`）时，配置和记录会自动改存到 `%APPDATA%\subsnap`。
+- 程序放在没有写入权限的文件夹（比如 `C:\Program Files`）时，配置和记录会自动改存到 `%APPDATA%\Elisubs`。
 
 ### 录制
 
@@ -93,9 +93,9 @@
 
 ```
 pip install -r requirements.txt
-pythonw subsnap.pyw                                        # 运行
-python -m PyInstaller subsnap.spec --noconfirm             # 打包到 dist/subsnap/
-dist\subsnap\subsnap.exe --selftest 图片.png               # 自检：识别结果写到 dist\subsnap\data\selftest.txt
+pythonw Elisubs.pyw                                        # 运行
+python -m PyInstaller Elisubs.spec --noconfirm             # 打包到 dist/Elisubs/
+dist\Elisubs\Elisubs.exe --selftest 图片.png               # 自检：识别结果写到 dist\Elisubs\data\selftest.txt
 ```
 
 ### 技术要点
@@ -115,10 +115,12 @@ dist\subsnap\subsnap.exe --selftest 图片.png               # 自检：识别�
   启动时发现 recording.jsonl 就补存（有读不出的行时原文件另存为 recording.broken-*.jsonl，不删）。
 - 热键：RegisterHotKey（独立线程 + 消息循环），暂停时真正注销；设置里改了快捷键会重建热键线程。
   托盘：pystray（子类化让左键也弹菜单）。界面：tkinter。
-- 数据位置：exe 旁边写不了（`paths._writable` 实际建一个文件试）就用 `%APPDATA%\subsnap`。
-- 检查更新：`api.github.com/repos/aquaregiaaa/subsnap/releases/latest` 的 tag 和 `subsnap.__version__` 比。
+- 数据位置：exe 旁边写不了（`paths._writable` 实际建一个文件试）就用 `%APPDATA%\Elisubs`。
+- 检查更新：`api.github.com/repos/aquaregiaaa/Elisubs/releases/latest` 的 tag 和 `elisubs.__version__` 比。
 - Notion：标准库 urllib，API 版本 2022-06-28；发送队列落盘，失败重试。
-- 开机自启：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run\subsnap`（只影响当前用户）。
+- 改名：1.0 / 1.1 叫 subsnap，1.2 起叫 Elisubs。新版第一次启动时（`migrate.py`）把旧的开机自启项换成新的；
+  如果是解压到新文件夹，会去旧开机自启指向的文件夹和 `%APPDATA%\subsnap` 找旧设置和记录复制过来（不删旧的）。
+- 开机自启：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Elisubs`（只影响当前用户）。
 - 图标：`make_icon.py` 从 `assets/elizabeth_src.png` 生成（把牌子上的字换成 COPIED，透视贴合）；
   `python make_icon.py variants` 出不同字体的对比图。
 
@@ -126,24 +128,24 @@ dist\subsnap\subsnap.exe --selftest 图片.png               # 自检：识别�
 
 | 路径 | 作用 |
 |---|---|
-| `subsnap.pyw` | 入口；`--selftest` 自检 |
-| `subsnap.spec` | PyInstaller 打包配置 |
+| `Elisubs.pyw` | 入口；`--selftest` 自检 |
+| `Elisubs.spec` | PyInstaller 打包配置 |
 | `config.json` | 首次运行自动生成：Notion 令牌、总页面链接、快捷键、记录位置（不入库）；格式写坏了会提示，保存设置时把坏文件另存 |
-| `data/` | 字幕框位置、记录、待发队列、录制暂存、运行日志 `subsnap.log`（不入库） |
-| `subsnap/settings.py` / `updater.py` | 设置窗口、检查更新 |
-| `subsnap/app.py` | 主流程；线程分工写在文件头 |
-| `subsnap/bar.py` | 悬浮条和它的图标 |
-| `subsnap/watch.py` | 录制：变化检测 + 录制线程 |
-| `subsnap/capture.py` | 截图、框选层、涂黑 |
-| `subsnap/ocr.py` | RapidOCR 封装（后台加载、预热、加锁） |
-| `subsnap/lines.py` | 文字框拼行 |
-| `subsnap/notion.py` | Notion 客户端 + 发送队列 |
-| `subsnap/logbook.py` | 当天 md 记录、去重 |
+| `data/` | 字幕框位置、记录、待发队列、录制暂存、运行日志 `elisubs.log`（不入库） |
+| `elisubs/settings.py` / `updater.py` | 设置窗口、检查更新 |
+| `elisubs/app.py` | 主流程；线程分工写在文件头 |
+| `elisubs/bar.py` | 悬浮条和它的图标 |
+| `elisubs/watch.py` | 录制：变化检测 + 录制线程 |
+| `elisubs/capture.py` | 截图、框选层、涂黑 |
+| `elisubs/ocr.py` | RapidOCR 封装（后台加载、预热、加锁） |
+| `elisubs/lines.py` | 文字框拼行 |
+| `elisubs/notion.py` | Notion 客户端 + 发送队列 |
+| `elisubs/logbook.py` | 当天 md 记录、去重 |
 | `docs/使用说明.txt` | 打包时放进压缩包的简短说明 |
-| `subsnap/hotkey.py` / `tray.py` / `toast.py` / `autostart.py` | 热键、托盘、提示框、开机自启 |
-| `subsnap/winutil.py` | DPI、窗口标题、剪贴板、单实例、截图隐身、圆角 |
+| `elisubs/hotkey.py` / `tray.py` / `toast.py` / `autostart.py` | 热键、托盘、提示框、开机自启 |
+| `elisubs/winutil.py` | DPI、窗口标题、剪贴板、单实例、截图隐身、圆角 |
 
-测试时可用环境变量 `SUBSNAP_DATA` / `SUBSNAP_CONFIG` / `SUBSNAP_NOTION_API` 把数据、配置、Notion 地址指到别处
+测试时可用环境变量 `ELISUBS_DATA` / `ELISUBS_CONFIG` / `ELISUBS_NOTION_API` 把数据、配置、Notion 地址指到别处
 （不同数据目录的实例可以同时运行）。
 
 ## 致谢

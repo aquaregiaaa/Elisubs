@@ -1,6 +1,6 @@
-subsnap 1.1 · 看视频时一键识别字幕
+Elisubs 1.1 · 看视频时一键识别字幕
 
-1. 双击 subsnap.exe。屏幕右下角出现悬浮条，任务栏右侧多一个托盘图标。
+1. 双击 Elisubs.exe。屏幕右下角出现悬浮条，任务栏右侧多一个托盘图标。
    如果弹出「Windows 已保护你的电脑」：点「更多信息」→「仍要运行」（程序没有数字签名而已）。
 2. 第一次用：点悬浮条上的「取景框」按钮，在视频字幕的位置拖一个框（Esc 取消）。框会被记住。
 3. 之后每句字幕点「鼠标」按钮（或按 Alt+S），提示「已复制」后直接粘贴。
@@ -20,5 +20,5 @@ subsnap 1.1 · 看视频时一键识别字幕
 
 - 识别记录默认在 data\logs 文件夹里，每天一个 md 文件（设置里可以改位置）。
 - 能认：中文（简繁）、英语、法语、德语、西班牙语、意大利语、葡萄牙语、日语。认不了俄语、韩语。
-- 想写进 Notion：看 https://github.com/aquaregiaaa/subsnap 的「写进 Notion」一节。
-- 出问题时，data\subsnap.log 里有错误详情。
+- 想写进 Notion：看 https://github.com/aquaregiaaa/Elisubs 的「写进 Notion」一节。
+- 出问题时，data\elisubs.log 里有错误详情。

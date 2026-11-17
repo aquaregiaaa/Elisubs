@@ -109,7 +109,7 @@ class Tray:
             Menu.SEPARATOR,
             Item("退出", do(app.quit)),
         )
-        self.icon = _LeftClickMenuIcon("subsnap", _icon(st["paused"]), "字幕识别", menu)
+        self.icon = _LeftClickMenuIcon("Elisubs", _icon(st["paused"]), "Elisubs", menu)
         sync.on_pages = self.refresh
 
     def start(self):

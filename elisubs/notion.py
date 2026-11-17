@@ -17,9 +17,9 @@ from urllib.parse import urlsplit
 
 from . import paths, store
 
-log = logging.getLogger("subsnap")
+log = logging.getLogger("elisubs")
 
-API = os.environ.get("SUBSNAP_NOTION_API", "https://api.notion.com/v1")
+API = os.environ.get("ELISUBS_NOTION_API", "https://api.notion.com/v1")
 VERSION = "2022-06-28"
 RETRY_SECONDS = 60
 
