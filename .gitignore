@@ -13,3 +13,7 @@ assets/variants/
 __pycache__/
 *.pyc
 *.tmp
+
+# Windows 文件夹图标设置（本机专用）
+desktop.ini
+folder.ico
