@@ -146,7 +146,7 @@ class Bar:
 
         # 从左到右：伊丽莎白、四个按钮
         # 每个图形按自己的实际宽度裁掉空白、两边各留 pad：相邻图形之间看起来的距离都是 2*pad
-        self.pad = round(5 * self.scale)
+        self.pad = round(6 * self.scale)  # 相邻图形间距 12（Kr 2026-11-18 从 10 加到 12）
         self.vpad = round(3 * self.scale)
 
         def photo(pil):
