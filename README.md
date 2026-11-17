@@ -26,7 +26,7 @@
 
 | 按钮 | 作用 |
 |---|---|
-| 伊丽莎白 / 最右边的点点 | 按住拖动悬浮条，位置会记住 |
+| 伊丽莎白 / 悬浮条四周的边 | 按住拖动悬浮条（鼠标会变成四向箭头），位置会记住 |
 | 鼠标 | 识别一次（热键 **Alt+S**） |
 | 取景框 | 换字幕区，换完马上识别一次（热键 **Alt+D**） |
 | 中A / 中 / A | 识别语言：双语 → 只留中文 → 只留外文，点一下换一种 |
@@ -139,6 +139,7 @@ dist\subsnap\subsnap.exe --selftest 图片.png               # 自检：识别�
 | `subsnap/lines.py` | 文字框拼行 |
 | `subsnap/notion.py` | Notion 客户端 + 发送队列 |
 | `subsnap/logbook.py` | 当天 md 记录、去重 |
+| `docs/使用说明.txt` | 打包时放进压缩包的简短说明 |
 | `subsnap/hotkey.py` / `tray.py` / `toast.py` / `autostart.py` | 热键、托盘、提示框、开机自启 |
 | `subsnap/winutil.py` | DPI、窗口标题、剪贴板、单实例、截图隐身、圆角 |
 

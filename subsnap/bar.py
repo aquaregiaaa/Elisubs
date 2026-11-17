@@ -1,8 +1,8 @@
-"""悬浮条：像输入法状态栏那样常驻，三个图标按钮。
+"""悬浮条：像输入法状态栏那样常驻，四个图标按钮。
 
-  [伊丽莎白] [鼠标=识别一次] [取景框=换字幕区] [中A=语言：双语→中文→外文] [● 录制 / REC n] [⋮⋮]
+  [伊丽莎白] [鼠标=识别一次] [取景框=换字幕区] [中A=语言：双语→中文→外文] [● 录制 / REC n]
 
-- 伊丽莎白和右边点点都是拖动把手，位置记在 state.json。
+- 四周的边距和伊丽莎白都能拖（鼠标变四向箭头），位置记在 state.json。
 - 点按钮不抢焦点（视频播放器的键盘焦点不丢）。
 - 系统截图能截到悬浮条；本工具自己识别时会把悬浮条那块涂黑，所以压在字幕框上也不会被识别进去。
 - 图标用 PIL 在 4 倍尺寸上画再缩小，高分屏上也清楚。
@@ -20,7 +20,6 @@ BORDER = "#3a3a3a"
 FG = (232, 232, 232, 255)
 RED = (226, 75, 74, 255)
 BEAK = (252, 198, 89, 255)  # 伊丽莎白嘴的黄色（从 elizabeth_src.png 取色）：鼠标图标、取景框里的字幕条
-GRIP = (110, 110, 110, 255)
 SS = 4  # 超采样倍数
 MASCOT = paths.ASSETS / "icon.png"
 
@@ -66,20 +65,37 @@ def icon_region(size):
 
 
 def icon_lang(size, mode):
-    """语言按钮：双语「中A」/ 只留中文「中」/ 只留外文「A」。字高和其他图标的外框一致。"""
+    """语言按钮：双语 =「中」在左上、「A」在右下；只留中文 =「中」；只留外文 =「A」。
+    实心白字，和其他图标同一种风格；外框和其他图标一样大（GLYPH）。"""
     im, s = _canvas(size)
     d = ImageDraw.Draw(im)
-    glyphs = {"both": "中A", "zh": "中", "foreign": "A"}[mode]
-    h = s * GLYPH * (0.78 if mode == "both" else 1.0)  # 两个字并排时缩一点，免得太宽
-    fonts = {"中": ImageFont.truetype("msyhbd.ttc", round(h * 1.15)), "A": ImageFont.truetype("arialbd.ttf", round(h * 1.36))}
-    boxes = [fonts[g].getbbox(g) for g in glyphs]
-    gap = s * 0.03
-    total = sum(b[2] - b[0] for b in boxes) + gap * (len(glyphs) - 1)
-    x = (s - total) / 2
-    for g, (l, t, r, b) in zip(glyphs, boxes):
-        d.text((x - l, s / 2 - (t + b) / 2), g, font=fonts[g], fill=FG)
-        x += (r - l) + gap
+    g = s * GLYPH
+    x0, y0 = (s - g) / 2, (s - g) / 2
+
+    def put(ch, h, cx, cy):
+        """把字缩放到字形高度约 h，中心放在 (cx, cy)（相对外框的 0–1 坐标）。"""
+        name, k = ("msyhbd.ttc", 1.15) if ch == "中" else ("arialbd.ttf", 1.36)
+        font = ImageFont.truetype(name, round(h * k))
+        l, t, r, b = font.getbbox(ch)
+        d.text((x0 + cx * g - (l + r) / 2, y0 + cy * g - (t + b) / 2), ch, font=font, fill=FG)
+
+    if mode == "both":
+        put("中", g * 0.58, 0.26, 0.27)
+        put("A", g * 0.58, 0.76, 0.75)
+    else:
+        put("中" if mode == "zh" else "A", g, 0.5, 0.5)
     return _done(im, size)
+
+
+def trim(img, pad):
+    """按图形实际宽度裁掉左右空白，再两边各留 pad 像素：按钮之间看起来的距离才一致。"""
+    bbox = img.getchannel("A").point(lambda a: 255 if a > 24 else 0).getbbox()
+    if not bbox:
+        return img
+    l, r = bbox[0], bbox[2]
+    out = Image.new("RGBA", (r - l + 2 * pad, img.height), (0, 0, 0, 0))
+    out.alpha_composite(img.crop((l, 0, r, img.height)), (pad, 0))
+    return out
 
 
 def icon_record(size):
@@ -88,16 +104,6 @@ def icon_record(size):
     ImageDraw.Draw(im).ellipse((s / 2 - r, s / 2 - r, s / 2 + r, s / 2 + r), fill=RED)
     return _done(im, size)
 
-
-def icon_grip(w, h):
-    im = Image.new("RGBA", (w * SS, h * SS), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    r = SS * max(1, w // 8)
-    for cx in (0.35, 0.65):
-        for cy in (0.3, 0.5, 0.7):
-            x, y = cx * w * SS, cy * h * SS
-            d.ellipse((x - r, y - r, x + r, y + r), fill=GRIP)
-    return im.resize((w, h), Image.LANCZOS)
 
 
 def label_rec(size, count):
@@ -131,27 +137,34 @@ class Bar:
         w.overrideredirect(True)
         w.attributes("-topmost", True)
         w.configure(bg=BORDER)
-        inner = tk.Frame(w, bg=BG, padx=round(3 * self.scale), pady=round(3 * self.scale))
-        inner.pack(padx=1, pady=1)
+        # 外圈 1 像素描边 + 一圈边距：这两层和伊丽莎白都是拖动区域（鼠标变四向箭头），按钮只管点
+        edge = round(7 * self.scale)
+        border = tk.Frame(w, bg=BORDER, padx=1, pady=1, cursor="fleur")
+        border.pack()
+        inner = tk.Frame(border, bg=BG, padx=edge, pady=edge, cursor="fleur")
+        inner.pack()
 
-        # 从左到右：伊丽莎白（也能拖）、四个按钮、拖动点点
-        handles = []
+        # 从左到右：伊丽莎白、四个按钮
+        # 每个图形按自己的实际宽度裁掉空白、两边各留 pad：相邻图形之间看起来的距离都是 2*pad
+        self.pad = round(5 * self.scale)
+        self.vpad = round(3 * self.scale)
+
+        def photo(pil):
+            return ImageTk.PhotoImage(trim(pil, self.pad))
+
+        handles = [border, inner]
         if MASCOT.exists():
-            size = self.btn + 2 * round(3 * self.scale)  # 和按钮（含内边距）一样高
-            pic = ImageTk.PhotoImage(Image.open(MASCOT).convert("RGBA").resize((size, size), Image.LANCZOS))
-            self.mascot = self._label(inner, pic, cursor="fleur")
-            self.mascot.pack(side="left")
+            size = self.btn + 2 * self.vpad  # 和按钮（含上下内边距）一样高
+            pic = Image.open(MASCOT).convert("RGBA").resize((size, size), Image.LANCZOS)
+            self.mascot = self._label(inner, photo(pic), cursor="fleur", pady=0)
             handles.append(self.mascot)
-        self.b_cap = self._button(inner, "cap", ImageTk.PhotoImage(icon_cursor(self.btn)), on_capture)
-        self.b_reg = self._button(inner, "reg", ImageTk.PhotoImage(icon_region(self.btn)), on_region)
-        self._lang_imgs = {m: ImageTk.PhotoImage(icon_lang(self.btn, m)) for m in ("both", "zh", "foreign")}
+        self.b_cap = self._button(inner, "cap", photo(icon_cursor(self.btn)), on_capture)
+        self.b_reg = self._button(inner, "reg", photo(icon_region(self.btn)), on_region)
+        self._lang_imgs = {m: photo(icon_lang(self.btn, m)) for m in ("both", "zh", "foreign")}
         mode = state["lang_mode"] if state["lang_mode"] in self._lang_imgs else "both"
         self.b_lang = self._button(inner, "lang", self._lang_imgs[mode], on_lang)
-        self.b_rec = self._button(inner, "rec", ImageTk.PhotoImage(icon_record(self.btn)), on_record)
+        self.b_rec = self._button(inner, "rec", photo(icon_record(self.btn)), on_record)
         self._rec_idle = self._imgs["rec"]
-        self.grip = self._label(inner, ImageTk.PhotoImage(icon_grip(round(self.btn * 0.45), self.btn)), cursor="fleur")
-        self.grip.pack(side="left", padx=(round(2 * self.scale), 0))
-        handles.append(self.grip)
 
         for h in handles:
             h.bind("<ButtonPress-1>", self._drag_start)
@@ -177,16 +190,16 @@ class Bar:
             self.rect = None
 
     # ---------- 组件 ----------
-    def _label(self, parent, img, cursor=""):
-        lbl = tk.Label(parent, image=img, bg=BG, bd=0, cursor=cursor)
+    def _label(self, parent, img, cursor="", pady=None):
+        lbl = tk.Label(parent, image=img, bg=BG, bd=0, padx=0, pady=self.vpad if pady is None else pady, cursor=cursor)
         lbl.image = img
+        lbl.pack(side="left")
         return lbl
 
     def _button(self, parent, key, img, action):
         self._imgs[key] = img
-        pad = round(3 * self.scale)
-        b = tk.Label(parent, image=img, bg=BG, bd=0, padx=pad, pady=pad, cursor="hand2")
-        b.pack(side="left", padx=(round(2 * self.scale), 0))
+        b = tk.Label(parent, image=img, bg=BG, bd=0, padx=0, pady=self.vpad, cursor="hand2")
+        b.pack(side="left")
         b.bind("<Enter>", lambda e: b.configure(bg=HOVER))
         b.bind("<Leave>", lambda e: b.configure(bg=BG))
         b.bind("<ButtonRelease-1>", lambda e: action() if 0 <= e.x < b.winfo_width() and 0 <= e.y < b.winfo_height() else None)
@@ -212,7 +225,10 @@ class Bar:
         self.win.geometry(f"+{e.x_root - self._off[0]}+{e.y_root - self._off[1]}")
 
     def _drag_end(self, e):
-        self.state.set("bar_pos", [self.win.winfo_x(), self.win.winfo_y()])
+        # 按鼠标松开的位置算，不读 winfo_x：最后一次移动可能还没生效，读到的是旧位置
+        pos = [e.x_root - self._off[0], e.y_root - self._off[1]]
+        self.win.geometry(f"+{pos[0]}+{pos[1]}")
+        self.state.set("bar_pos", pos)
 
     # ---------- 状态 ----------
     def set_visible(self, visible):
@@ -224,18 +240,22 @@ class Bar:
         self.win.update_idletasks()
         self._update_rect()
 
-    def set_lang(self, mode):
-        self.b_lang.configure(image=self._lang_imgs[mode])
-
-    def set_recording(self, on, count=0):
-        self.recording, self.count = on, count
-        right = self.win.winfo_x() + self.win.winfo_width()  # 变宽变窄时右边缘不动（悬浮条一般贴在右下角）
-        if on:
-            img = ImageTk.PhotoImage(label_rec(self.btn, count))
-            self._imgs["rec_on"] = img
-            self.b_rec.configure(image=img)
-        else:
-            self.b_rec.configure(image=self._rec_idle)
+    def _keep_right(self, change):
+        """换按钮图片会让悬浮条变宽变窄：保持右边缘不动（悬浮条一般贴在右下角）。"""
+        right = self.win.winfo_x() + self.win.winfo_width()
+        change()
         self.win.update_idletasks()
         if self.win.winfo_viewable():
             self.win.geometry(f"+{right - self.win.winfo_reqwidth()}+{self.win.winfo_y()}")
+
+    def set_lang(self, mode):
+        self._keep_right(lambda: self.b_lang.configure(image=self._lang_imgs[mode]))
+
+    def set_recording(self, on, count=0):
+        self.recording, self.count = on, count
+        if on:
+            img = ImageTk.PhotoImage(trim(label_rec(self.btn, count), self.pad))
+            self._imgs["rec_on"] = img
+            self._keep_right(lambda: self.b_rec.configure(image=img))
+        else:
+            self._keep_right(lambda: self.b_rec.configure(image=self._rec_idle))
