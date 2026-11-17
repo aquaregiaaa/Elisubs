@@ -1,0 +1,15 @@
+# 个人配置和数据：Notion 令牌、识别记录、日志，绝不入库
+config.json
+data/
+
+# 打包产物
+build/
+dist/
+*.zip
+
+# 图标候选图（make_icon.py variants 生成）
+assets/variants/
+
+__pycache__/
+*.pyc
+*.tmp

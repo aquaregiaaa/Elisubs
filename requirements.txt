@@ -1,0 +1,6 @@
+rapidocr>=3.10
+onnxruntime>=1.20
+Pillow>=11
+numpy>=2
+pystray>=0.19
+pyinstaller>=6  # 只有打包时需要
