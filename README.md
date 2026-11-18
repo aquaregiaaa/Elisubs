@@ -121,7 +121,8 @@ dist\Elisubs\Elisubs.exe --selftest 图片.png               # 自检：识别�
 - 改名：1.0 / 1.1 叫 subsnap，1.2 起叫 Elisubs。新版第一次启动时（`migrate.py`）把旧的开机自启项换成新的；
   如果是解压到新文件夹，会去旧开机自启指向的文件夹和 `%APPDATA%\subsnap` 找旧设置和记录复制过来（不删旧的）。
 - 开机自启：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Elisubs`（只影响当前用户）。
-- 图标：`make_icon.py` 从 `assets/elizabeth_src.png` 生成（把牌子上的字换成 COPIED，透视贴合）；
+- 图标：`make_icon.py` 从 `assets/elizabeth_src.png` 生成（换牌子上的字，透视贴合）：
+  悬浮条 / 托盘 / exe 图标写 SUBS!（Arial Black，和 COPIED 同字号，字间距 +5%），「已复制」提示框的大图写 COPIED；
   `python make_icon.py variants` 出不同字体的对比图。
 
 ### 文件
