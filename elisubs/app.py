@@ -13,7 +13,7 @@ import threading
 import time
 import tkinter as tk
 
-from . import __version__, autostart, migrate, capture, logbook, notion, paths, store, updater, winutil
+from . import __version__, migrate, capture, logbook, notion, paths, store, updater, winutil
 from .bar import Bar
 from .hotkey import Hotkeys
 from .lines import LANG_MODES, filter_lang, merge, paragraph
@@ -53,7 +53,8 @@ class App:
                                on_stop=lambda r: self.post(lambda: self._watch_stopped(r)),
                                get_exclude=self._exclude)
         self.hot = self._make_hotkeys(self.cfg)
-        self.settings = Settings(self.root, self._settings_saved)
+        self.settings = Settings(self.root, self._settings_saved,
+                                 on_check_update=self.check_update, get_update=lambda: self.update_available)
         self.tray = Tray(self)
         self.bar = Bar(self.root, self.state,
                        on_capture=lambda: self.trigger(reselect=False),
@@ -386,8 +387,8 @@ class App:
             return
         if newer:
             self.update_available = ver
-            self.post(lambda: (self.tray.refresh(), self.toast.show(
-                f"有新版本 {ver}", "托盘 → 下载新版本", "ok", ms=6000)))
+            self.post(lambda: (self.settings.refresh_update(), self.toast.show(
+                f"有新版本 {ver}", "设置 → 下载新版本", "ok", ms=6000)))
         elif manual:
             self.post(lambda: self.toast.show(f"已经是最新版本（{__version__}）", "", "ok"))
 
@@ -414,16 +415,6 @@ class App:
         self.bar.set_visible(not hidden)
         self.tray.refresh()
 
-    def toggle_autostart(self):
-        on = not autostart.enabled()
-        try:
-            autostart.set_enabled(on)
-        except OSError as e:
-            log.exception("设置开机自启失败")
-            self.toast.show("开机自启没设置成功", str(e), "err", ms=4000)
-            return
-        self.tray.refresh()
-        self.toast.show("已设为开机自启" if on else "已取消开机自启", "", "ok")
 
     def set_target(self, t):
         self.state.set("target", t)
@@ -443,31 +434,6 @@ class App:
     def open_logs(self):
         os.startfile(logbook.logs_dir()[0])
 
-    def change_log_dir(self):
-        """选文件夹 → 写进 config.json 的 log_dir。选回默认的 data/logs 就是恢复默认。"""
-        from tkinter import filedialog
-        current = logbook.logs_dir()[0]
-        holder = tk.Toplevel(self.root)  # 让选文件夹窗口浮在最上面（视频全屏时也看得到）
-        holder.overrideredirect(True)
-        holder.attributes("-topmost", True)
-        holder.geometry("1x1+0+0")
-        try:
-            chosen = filedialog.askdirectory(parent=holder, initialdir=str(current),
-                                             title="识别记录保存到哪个文件夹", mustexist=False)
-        finally:
-            holder.destroy()
-        if not chosen:
-            return
-        path = os.path.normpath(chosen)
-        is_default = os.path.normcase(path) == os.path.normcase(str(paths.LOGS))
-        store.update_config("log_dir", "" if is_default else path)
-        _, problem = logbook.logs_dir()
-        if problem:
-            self.toast.show("这个文件夹用不了", problem, "err", ms=5000)
-            store.update_config("log_dir", "")
-            return
-        self._log_problem = None
-        self.toast.show("记录保存位置已改", ("默认位置：" if is_default else "") + path + "\n以前的记录留在原处", "ok", ms=4000)
 
     def open_config(self):
         store.load_config()  # 没有就先生成

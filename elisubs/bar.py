@@ -21,6 +21,10 @@ FG = (232, 232, 232, 255)
 RED = (226, 75, 74, 255)
 BEAK = (252, 198, 89, 255)  # 伊丽莎白嘴的黄色（从 elizabeth_src.png 取色）：鼠标图标、取景框里的字幕条
 SS = 4  # 超采样倍数
+TIP_FG = "#F2F2F2"
+TIP_FONT = ("Microsoft YaHei UI", 10)
+TIP_DELAY = 500  # 鼠标停多久出气泡（毫秒），划过去不会乱闪
+LANG_TIPS = {"both": "识别双语", "zh": "仅识别中文", "foreign": "仅识别外语"}
 MASCOT = paths.ASSETS / "icon.png"
 
 
@@ -123,6 +127,51 @@ def label_rec(size, count):
     return im.resize((round(w / SS), size), Image.LANCZOS)
 
 
+class Tip:
+    """悬停气泡：鼠标在按钮上停一会儿，按钮正上方出现一行字（悬浮条靠屏幕顶时放下方）。
+    不抢焦点；截图时透明，录制时压在字幕上也不会被识别进去。"""
+
+    def __init__(self, root, bar_win, scale):
+        self.root, self.bar_win, self.scale = root, bar_win, scale
+        self._job = None
+        w = self.win = tk.Toplevel(root)
+        w.overrideredirect(True)
+        w.attributes("-topmost", True)
+        w.configure(bg=BORDER)  # 外圈 1 像素描边，和悬浮条一样
+        self.label = tk.Label(w, bg=BG, fg=TIP_FG, font=TIP_FONT, padx=round(8 * scale), pady=round(3 * scale))
+        self.label.pack(padx=1, pady=1)
+        w.withdraw()
+        w.update_idletasks()
+        winutil.make_noactivate(w)
+        winutil.exclude_from_capture(w)
+
+    def schedule(self, widget, text):
+        self.hide()
+        self._job = self.root.after(TIP_DELAY, lambda: self._show(widget, text))
+
+    def _show(self, widget, text):
+        self._job = None
+        w = self.win
+        self.label.configure(text=text)
+        w.update_idletasks()
+        tw, th = w.winfo_reqwidth(), w.winfo_reqheight()
+        gap = round(6 * self.scale)
+        x = widget.winfo_rootx() + widget.winfo_width() // 2 - tw // 2
+        y = self.bar_win.winfo_rooty() - th - gap
+        _, top, _, _ = winutil.work_area_at(x, self.bar_win.winfo_rooty())
+        if y < top:  # 上面放不下就放到悬浮条下面
+            y = self.bar_win.winfo_rooty() + self.bar_win.winfo_height() + gap
+        w.geometry(f"+{x}+{y}")
+        w.deiconify()
+        w.attributes("-topmost", True)
+
+    def hide(self):
+        if self._job:
+            self.root.after_cancel(self._job)
+            self._job = None
+        self.win.withdraw()
+
+
 class Bar:
     def __init__(self, root, state, on_capture, on_region, on_record, on_lang, on_menu=None, on_region_hover=None):
         self.root = root
@@ -132,6 +181,7 @@ class Bar:
         self.recording = False
         self.count = 0
         self._imgs = {}
+        self.lang_mode = state["lang_mode"] if state["lang_mode"] in LANG_TIPS else "both"
         self._off = None  # 拖动时鼠标相对悬浮条左上角的偏移；没在拖就是 None
 
         w = self.win = tk.Toplevel(root)
@@ -159,15 +209,16 @@ class Bar:
             pic = Image.open(MASCOT).convert("RGBA").resize((size, size), Image.LANCZOS)
             self.mascot = self._label(inner, photo(pic), cursor="fleur", pady=0)
             handles.append(self.mascot)
-        self.b_cap = self._button(inner, "cap", photo(icon_cursor(self.btn)), on_capture)
-        self.b_reg = self._button(inner, "reg", photo(icon_region(self.btn)), on_region)
+        self.tip = Tip(root, self.win, self.scale)
+        self.b_cap = self._button(inner, "cap", photo(icon_cursor(self.btn)), on_capture, "单次识别")
+        self.b_reg = self._button(inner, "reg", photo(icon_region(self.btn)), on_region, "重新框选")
         if on_region_hover:  # 鼠标停在取景框上就显示当前字幕区，移开就收起
             self.b_reg.bind("<Enter>", lambda e: on_region_hover(True), add="+")
             self.b_reg.bind("<Leave>", lambda e: on_region_hover(False), add="+")
         self._lang_imgs = {m: photo(icon_lang(self.btn, m)) for m in ("both", "zh", "foreign")}
-        mode = state["lang_mode"] if state["lang_mode"] in self._lang_imgs else "both"
-        self.b_lang = self._button(inner, "lang", self._lang_imgs[mode], on_lang)
-        self.b_rec = self._button(inner, "rec", photo(icon_record(self.btn)), on_record)
+        self.b_lang = self._button(inner, "lang", self._lang_imgs[self.lang_mode], on_lang,
+                                   lambda: LANG_TIPS[self.lang_mode])
+        self.b_rec = self._button(inner, "rec", photo(icon_record(self.btn)), on_record, "连续识别")
         self._rec_idle = self._imgs["rec"]
 
         for h in handles:
@@ -203,12 +254,23 @@ class Bar:
         lbl.pack(side="left")
         return lbl
 
-    def _button(self, parent, key, img, action):
+    def _button(self, parent, key, img, action, tip):
+        """tip：悬停气泡的字，或者返回字的函数（语言按钮跟着当前模式变）。"""
         self._imgs[key] = img
         b = tk.Label(parent, image=img, bg=BG, bd=0, padx=0, pady=self.vpad, cursor="hand2")
         b.pack(side="left")
-        b.bind("<Enter>", lambda e: b.configure(bg=HOVER))
-        b.bind("<Leave>", lambda e: b.configure(bg=BG))
+
+        def enter(e):
+            b.configure(bg=HOVER)
+            self.tip.schedule(b, tip() if callable(tip) else tip)
+
+        def leave(e):
+            b.configure(bg=BG)
+            self.tip.hide()
+
+        b.bind("<Enter>", enter)
+        b.bind("<Leave>", leave)
+        b.bind("<ButtonPress-1>", lambda e: self.tip.hide())  # 点了就收起
         b.bind("<ButtonRelease-1>", lambda e: action() if 0 <= e.x < b.winfo_width() and 0 <= e.y < b.winfo_height() else None)
         return b
 
@@ -280,6 +342,7 @@ class Bar:
             self.win.geometry(f"+{right - self.win.winfo_reqwidth()}+{self.win.winfo_y()}")
 
     def set_lang(self, mode):
+        self.lang_mode = mode
         self._keep_right(lambda: self.b_lang.configure(image=self._lang_imgs[mode]))
 
     def set_recording(self, on, count=0):

@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pystray import Menu
 from pystray import MenuItem as Item
 
-from . import autostart, paths
+from . import paths
 
 
 ASSETS = paths.ASSETS
@@ -84,29 +84,20 @@ class Tray:
             n = sync.pending
             return "写入 Notion" + (f"（{n} 条待发）" if n else "")
 
-        def lang_item(mode, text):
-            return Item(text, do(lambda: app.set_lang(mode)), checked=lambda i: st["lang_mode"] == mode, radio=True)
-
-        def update_text(item):
-            return f"下载新版本 {app.update_available}" if app.update_available else "检查更新"
-
+        # 悬浮条上有的功能（识别、框选、语言、录制）菜单里不重复（Kr 2026-11-19 定的）；
+        # 开机自启、检查更新在设置窗口里
         menu = Menu(
-            Item("重新框选字幕区", do(lambda: app.trigger(reselect=True))),
-            Item("显示字幕区", do(app.show_region)),
-            Item("录制字幕", do(app.toggle_watch), checked=lambda i: app.watcher.running),
-            Item("识别语言", Menu(lang_item("both", "双语"), lang_item("zh", "只留中文"), lang_item("foreign", "只留外文"))),
             Item("隐藏悬浮窗", do(app.toggle_bar), checked=lambda i: st["bar_hidden"]),
+            Item("显示字幕区", do(app.show_region)),
+            Item("暂停快捷键", do(app.toggle_pause), checked=lambda i: st["paused"]),
+            Menu.SEPARATOR,
+            Item("本地记录", Menu(Item("打开今天的记录", do(app.open_today)),
+                                  Item("打开记录文件夹", do(app.open_logs)))),
             Menu.SEPARATOR,
             Item(notion_text, do(app.toggle_notion), checked=lambda i: st.notion_on),
             Item("目标页面", Menu(target_items)),
-            Item("暂停快捷键", do(app.toggle_pause), checked=lambda i: st["paused"]),
-            Item("开机自启", do(app.toggle_autostart), checked=lambda i: autostart.enabled()),
             Menu.SEPARATOR,
-            Item("打开今天的记录", do(app.open_today)),
-            Item("打开记录文件夹", do(app.open_logs)),
-            Item("更改记录保存位置…", do(app.change_log_dir)),
             Item("设置…", do(app.open_settings)),
-            Item(update_text, do(app.check_update)),
             Menu.SEPARATOR,
             Item("退出", do(app.quit)),
         )

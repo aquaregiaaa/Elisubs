@@ -1,4 +1,4 @@
-"""设置窗口：快捷键、记录保存位置、Notion 令牌和总页面。
+"""设置窗口：快捷键、记录保存位置、Notion 令牌和总页面、开机自启、版本和检查更新。
 
 保存时逐项检查，有问题就在窗口里标红，不保存；全部没问题才一次写进 config.json
 （其他字段原样保留；原文件格式坏了会先另存一份）。
@@ -8,7 +8,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog
 
-from . import hotkey, notion, paths, store
+from . import __version__, autostart, hotkey, notion, paths, store
 
 BG = "#202020"
 FIELD = "#2c2c2c"
@@ -20,9 +20,11 @@ FONT = ("Microsoft YaHei UI", 10)
 
 
 class Settings:
-    def __init__(self, root, on_saved):
+    def __init__(self, root, on_saved, on_check_update=None, get_update=None):
         self.root = root
         self.on_saved = on_saved  # on_saved(旧配置, 新配置)
+        self.on_check_update = on_check_update  # 点「检查更新」/「下载新版本」
+        self.get_update = get_update or (lambda: None)  # 有新版本时返回版本号
         self.win = None
 
     def open(self):
@@ -50,15 +52,29 @@ class Settings:
         self.vars = {}
         row = 1
         row = self._section(body, row, "快捷键")
-        row = self._field(body, row, "hotkey_capture", "识别一次", cfg["hotkey_capture"])
-        row = self._field(body, row, "hotkey_reselect", "换字幕区", cfg["hotkey_reselect"])
-        row = self._field(body, row, "hotkey_record", "录制", cfg["hotkey_record"])
+        row = self._field(body, row, "hotkey_capture", "单次识别", cfg["hotkey_capture"])
+        row = self._field(body, row, "hotkey_reselect", "重新框选", cfg["hotkey_reselect"])
+        row = self._field(body, row, "hotkey_record", "连续识别", cfg["hotkey_record"])
         row = self._section(body, row, "识别记录")
         current_dir = cfg["log_dir"].strip() or str(paths.LOGS)
         row = self._field(body, row, "log_dir", "保存位置", current_dir, button=("选择…", self._pick_dir))
         row = self._section(body, row, "Notion")
         row = self._field(body, row, "notion_token", "令牌", cfg["notion_token"], secret=True)
         row = self._field(body, row, "notion_parent_page", "总页面链接", cfg["notion_parent_page"])
+
+        row = self._section(body, row, "程序")
+        tk.Label(body, text="开机自启", bg=BG, fg=FG, font=FONT, anchor="w", width=9).grid(row=row, column=0, sticky="w", pady=3)
+        self.autostart_var = tk.BooleanVar(value=autostart.enabled())
+        tk.Checkbutton(body, variable=self.autostart_var, bg=BG, activebackground=BG, fg=FG, selectcolor=FIELD,
+                       bd=0, highlightthickness=0, cursor="hand2").grid(row=row, column=1, sticky="w", pady=3)
+        row += 1
+        tk.Label(body, text="版本", bg=BG, fg=FG, font=FONT, anchor="w", width=9).grid(row=row, column=0, sticky="w", pady=3)
+        self.ver_label = tk.Label(body, bg=BG, fg=FG, font=FONT, anchor="w")
+        self.ver_label.grid(row=row, column=1, sticky="w", pady=3)
+        self.update_btn = self._button(body, "检查更新", lambda: self.on_check_update and self.on_check_update())
+        self.update_btn.grid(row=row, column=2, sticky="w", padx=(8, 0))
+        row += 1
+        self.refresh_update()
 
         self.err = tk.Label(body, bg=BG, fg=ERR, font=FONT, justify="left", anchor="w", wraplength=460)
         self.err.grid(row=row, column=0, columnspan=3, sticky="w", pady=(10, 0))
@@ -110,6 +126,15 @@ class Settings:
         if chosen:
             self.vars["log_dir"].set(os.path.normpath(chosen))
 
+    def refresh_update(self):
+        """查到新版本后按钮变成「下载 x」（窗口没开就什么都不做）。"""
+        if self.win is None or not self.win.winfo_exists():
+            return
+        ver = self.get_update()
+        self.ver_label.configure(text=f"{__version__}（有新版本 {ver}）" if ver else __version__)
+        if ver:
+            self.update_btn.configure(text=f"下载 {ver}", bg=ACCENT, activebackground=ACCENT)
+
     def close(self):
         if self.win is not None:
             self.win.destroy()
@@ -117,7 +142,7 @@ class Settings:
 
     # ---------- 保存 ----------
     def _validate(self, v):
-        keys = (("hotkey_capture", "识别一次"), ("hotkey_reselect", "换字幕区"), ("hotkey_record", "录制"))
+        keys = (("hotkey_capture", "单次识别"), ("hotkey_reselect", "重新框选"), ("hotkey_record", "连续识别"))
         parsed = {}
         for key, name in keys:
             try:
@@ -151,6 +176,13 @@ class Settings:
             return
         if os.path.normcase(os.path.normpath(v["log_dir"] or str(paths.LOGS))) == os.path.normcase(str(paths.LOGS)):
             v["log_dir"] = ""  # 选的就是默认位置
+        want = self.autostart_var.get()
+        if want != autostart.enabled():
+            try:
+                autostart.set_enabled(want)
+            except OSError as e:
+                self.err.configure(text=f"开机自启没设置成功：{e}")
+                return
         old = store.load_config()
         store.update_config(None, **{k: v[k].lower() if k.startswith("hotkey") else v[k] for k in v})
         self.close()
