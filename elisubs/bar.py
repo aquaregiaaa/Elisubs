@@ -132,6 +132,7 @@ class Bar:
         self.recording = False
         self.count = 0
         self._imgs = {}
+        self._off = None  # 拖动时鼠标相对悬浮条左上角的偏移；没在拖就是 None
 
         w = self.win = tk.Toplevel(root)
         w.overrideredirect(True)
@@ -225,11 +226,17 @@ class Bar:
         self._off = (e.x_root - self.win.winfo_x(), e.y_root - self.win.winfo_y())
 
     def _drag(self, e):
+        if self._off is None:
+            return
         self.win.geometry(f"+{e.x_root - self._off[0]}+{e.y_root - self._off[1]}")
 
     def _drag_end(self, e):
+        # 在别处按下、到悬浮条上才松开（比如压在悬浮条上的托盘菜单）：不是拖动，不管
+        if self._off is None:
+            return
         # 按鼠标松开的位置算，不读 winfo_x：最后一次移动可能还没生效，读到的是旧位置
         pos = [e.x_root - self._off[0], e.y_root - self._off[1]]
+        self._off = None
         self.win.geometry(f"+{pos[0]}+{pos[1]}")
         self.state.set("bar_pos", pos)
 
