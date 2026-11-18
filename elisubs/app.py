@@ -54,7 +54,8 @@ class App:
                                get_exclude=self._exclude)
         self.hot = self._make_hotkeys(self.cfg)
         self.settings = Settings(self.root, self._settings_saved,
-                                 on_check_update=self.check_update, get_update=lambda: self.update_available)
+                                 on_check_update=self.check_update, get_update=lambda: self.update_available,
+                                 on_capture_keys=lambda on: self.hot.set_paused(on or self.state["paused"]))
         self.tray = Tray(self)
         self.bar = Bar(self.root, self.state,
                        on_capture=lambda: self.trigger(reselect=False),
