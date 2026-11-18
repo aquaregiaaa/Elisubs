@@ -138,7 +138,6 @@ class RegionFlash:
             s.overrideredirect(True)
             s.attributes("-topmost", True)
             s.configure(bg=self.COLOR)
-            s.attributes("-alpha", 1.0)  # 变成分层窗口，鼠标穿透要用
             s.withdraw()
             s.update_idletasks()
             winutil.make_noactivate(s)

@@ -120,11 +120,14 @@ def make_noactivate(tk_toplevel):
 
 
 def click_through(tk_toplevel):
-    """鼠标穿透：点击和悬停都落到下面的窗口（窗口要先是分层窗口，tk 设过 -alpha 就是）。"""
-    GWL_EXSTYLE, WS_EX_LAYERED, WS_EX_TRANSPARENT = -20, 0x00080000, 0x00000020
+    """鼠标穿透：点击和悬停都落到下面的窗口。
+    穿透要求是分层窗口；分层窗口必须设一次透明度，否则 Windows 根本不画它
+    （IsWindowVisible 照样是真，2026-11-19 就这样整个蓝框看不见）。"""
+    GWL_EXSTYLE, WS_EX_LAYERED, WS_EX_TRANSPARENT, LWA_ALPHA = -20, 0x00080000, 0x00000020, 0x2
     hwnd = toplevel_hwnd(tk_toplevel)
     style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
     user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED | WS_EX_TRANSPARENT)
+    user32.SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA)
 
 
 def exclude_from_capture(tk_toplevel):
