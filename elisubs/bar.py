@@ -180,6 +180,7 @@ class Bar:
         winutil.round_corners(w)
         self._place()
         self.set_visible(not state["bar_hidden"])
+        self.root.after(3000, self._watch_screen)
 
     def _update_rect(self):
         w = self.win
@@ -231,10 +232,28 @@ class Bar:
         self.state.set("bar_pos", pos)
 
     # ---------- 状态 ----------
+    def _rescue(self):
+        """悬浮条中心不在任何屏幕上就挪回主屏右下角。
+        换了屏幕排布（Win+P 切投影、拔外接屏）时 Windows 不会挪隐藏着的窗口，再显示就跑到屏幕外了。
+        只挪当前位置，不改 state 里记的位置：排布换回来，下次启动还在原处。"""
+        w = self.win
+        w.update_idletasks()
+        cx = w.winfo_x() + w.winfo_reqwidth() // 2
+        cy = w.winfo_y() + w.winfo_reqheight() // 2
+        if not winutil.on_some_monitor(cx, cy):
+            x, y = self._default_pos()
+            w.geometry(f"+{x}+{y}")
+
+    def _watch_screen(self):
+        if self.win.winfo_viewable():
+            self._rescue()
+        self.root.after(3000, self._watch_screen)
+
     def set_visible(self, visible):
         if visible:
             self.win.deiconify()
             self.win.attributes("-topmost", True)
+            self._rescue()  # 显示之后再查：隐藏时读到的坐标不准
         else:
             self.win.withdraw()
         self.win.update_idletasks()
