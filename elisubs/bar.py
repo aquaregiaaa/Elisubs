@@ -22,7 +22,7 @@ RED = (226, 75, 74, 255)
 BEAK = (252, 198, 89, 255)  # 伊丽莎白嘴的黄色（从 elizabeth_src.png 取色）：鼠标图标、取景框里的字幕条
 SS = 4  # 超采样倍数
 TIP_FG = "#F2F2F2"
-TIP_FONT = ("Microsoft YaHei UI", 10)
+TIP_FONT = ("Microsoft YaHei UI", 9)  # Kr 2026-11-19：比 10 号小一档
 TIP_DELAY = 500  # 鼠标停多久出气泡（毫秒），划过去不会乱闪
 LANG_TIPS = {"both": "识别双语", "zh": "仅识别中文", "foreign": "仅识别外语"}
 MASCOT = paths.ASSETS / "icon.png"
@@ -138,11 +138,12 @@ class Tip:
         w.overrideredirect(True)
         w.attributes("-topmost", True)
         w.configure(bg=BORDER)  # 外圈 1 像素描边，和悬浮条一样
-        self.label = tk.Label(w, bg=BG, fg=TIP_FG, font=TIP_FONT, padx=round(8 * scale), pady=round(3 * scale))
+        self.label = tk.Label(w, bg=BG, fg=TIP_FG, font=TIP_FONT, padx=round(6 * scale), pady=round(1 * scale))
         self.label.pack(padx=1, pady=1)
         w.withdraw()
         w.update_idletasks()
         winutil.make_noactivate(w)
+        winutil.round_corners(w)  # 和悬浮条同样的圆角
         winutil.exclude_from_capture(w)
 
     def schedule(self, widget, text):
