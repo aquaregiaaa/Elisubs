@@ -45,6 +45,7 @@ class App:
 
         self.toast = Toast(self.root)
         self.selector = capture.Selector(self.root)
+        self.flash = capture.RegionFlash(self.root)
         self.ocr = Ocr()
         self.sync = notion.Sync(self.state, lambda k, h, b: self.post(lambda: self.toast.show(h, b, k)))
         self.watcher = Watcher(self.ocr, lambda: self.state["region"],
@@ -59,6 +60,7 @@ class App:
                        on_region=lambda: self.trigger(reselect=True),
                        on_record=self.toggle_watch,
                        on_lang=self.cycle_lang,
+                       on_region_hover=self.show_region,
                        on_menu=lambda: self.tray.popup())
 
     # ---------- 启动 / 退出 ----------
@@ -138,9 +140,18 @@ class App:
         self.selector.select(shot, origin, done)
 
     # ---------- 单次识别 ----------
+    def show_region(self, from_menu=False):
+        """蓝框标出当前字幕区 3 秒。悬停取景框按钮时 from_menu=False：还没框过就什么都不做。"""
+        region = self.state["region"]
+        if region:
+            self.flash.show(region)
+        elif from_menu:
+            self.toast.show("还没框选字幕区", "点悬浮条上的取景框按钮拖一个框", "warn")
+
     def trigger(self, reselect=False):
         if self.busy or self.selector.active:
             return
+        self.flash.hide()  # 蓝框别被截进去，也别压在框选层上
         self.busy = True
         hwnd = winutil.foreground()
         title = winutil.clean_title(winutil.window_title(hwnd))

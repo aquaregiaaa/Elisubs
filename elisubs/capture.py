@@ -117,3 +117,50 @@ class Selector:
         cb, self._on_done = self._on_done, None
         if cb:
             cb(region)
+
+
+class RegionFlash:
+    """在字幕区外面一圈画蓝框，过几秒自己消失（「显示字幕区」）。
+
+    用四条细长的窗口拼成框，而不是一整块透明窗口：框里面什么都没有，
+    不挡画面、不挡鼠标。框画在字幕区外面，截图时也设成透明，录制和识别都看不到它。
+    """
+    COLOR = "#85B7EB"  # 和框选时的框同色
+
+    def __init__(self, root):
+        self.root = root
+        self._job = None
+        scale = root.winfo_fpixels("1i") / 96
+        self.width = max(2, round(2 * scale))
+        self.strips = []
+        for _ in range(4):
+            s = tk.Toplevel(root)
+            s.overrideredirect(True)
+            s.attributes("-topmost", True)
+            s.configure(bg=self.COLOR)
+            s.withdraw()
+            s.update_idletasks()
+            winutil.make_noactivate(s)
+            winutil.exclude_from_capture(s)
+            self.strips.append(s)
+
+    def show(self, region, ms=3000):
+        l, t, r, b = region
+        w, g = self.width, 1  # 线宽、和字幕区之间留的缝
+        L, T, R, B = l - g - w, t - g - w, r + g + w, b + g + w  # 框的外边界
+        rects = ((L, T, R - L, w), (L, B - w, R - L, w),   # 上、下
+                 (L, T, w, B - T), (R - w, T, w, B - T))   # 左、右
+        for s, (x, y, ww, hh) in zip(self.strips, rects):
+            s.geometry(f"{ww}x{hh}+{x}+{y}")
+            s.deiconify()
+            s.attributes("-topmost", True)
+        if self._job:
+            self.root.after_cancel(self._job)
+        self._job = self.root.after(ms, self.hide)
+
+    def hide(self):
+        if self._job:
+            self.root.after_cancel(self._job)
+            self._job = None
+        for s in self.strips:
+            s.withdraw()
