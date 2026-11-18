@@ -123,7 +123,7 @@ class RegionFlash:
     """在字幕区外面一圈画蓝框，过几秒自己消失（「显示字幕区」）。
 
     用四条细长的窗口拼成框，而不是一整块透明窗口：框里面什么都没有，
-    不挡画面、不挡鼠标。框画在字幕区外面，截图时也设成透明，录制和识别都看不到它。
+    不挡画面；鼠标穿透（点击、悬停都落到下面）。框画在字幕区外面，截图时也设成透明，录制和识别都看不到它。
     """
     COLOR = "#85B7EB"  # 和框选时的框同色
 
@@ -138,13 +138,16 @@ class RegionFlash:
             s.overrideredirect(True)
             s.attributes("-topmost", True)
             s.configure(bg=self.COLOR)
+            s.attributes("-alpha", 1.0)  # 变成分层窗口，鼠标穿透要用
             s.withdraw()
             s.update_idletasks()
             winutil.make_noactivate(s)
+            winutil.click_through(s)  # 框压在取景框按钮上时，鼠标碰到框也不算「移开」
             winutil.exclude_from_capture(s)
             self.strips.append(s)
 
     def show(self, region, ms=3000):
+        """ms=None：一直显示，直到 hide()。"""
         l, t, r, b = region
         w, g = self.width, 1  # 线宽、和字幕区之间留的缝
         L, T, R, B = l - g - w, t - g - w, r + g + w, b + g + w  # 框的外边界
@@ -156,7 +159,9 @@ class RegionFlash:
             s.attributes("-topmost", True)
         if self._job:
             self.root.after_cancel(self._job)
-        self._job = self.root.after(ms, self.hide)
+            self._job = None
+        if ms is not None:
+            self._job = self.root.after(ms, self.hide)
 
     def hide(self):
         if self._job:

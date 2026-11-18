@@ -161,8 +161,9 @@ class Bar:
             handles.append(self.mascot)
         self.b_cap = self._button(inner, "cap", photo(icon_cursor(self.btn)), on_capture)
         self.b_reg = self._button(inner, "reg", photo(icon_region(self.btn)), on_region)
-        if on_region_hover:
-            self.b_reg.bind("<Enter>", lambda e: on_region_hover(), add="+")  # 鼠标停在取景框上就显示当前字幕区
+        if on_region_hover:  # 鼠标停在取景框上就显示当前字幕区，移开就收起
+            self.b_reg.bind("<Enter>", lambda e: on_region_hover(True), add="+")
+            self.b_reg.bind("<Leave>", lambda e: on_region_hover(False), add="+")
         self._lang_imgs = {m: photo(icon_lang(self.btn, m)) for m in ("both", "zh", "foreign")}
         mode = state["lang_mode"] if state["lang_mode"] in self._lang_imgs else "both"
         self.b_lang = self._button(inner, "lang", self._lang_imgs[mode], on_lang)

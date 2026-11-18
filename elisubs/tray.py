@@ -92,7 +92,7 @@ class Tray:
 
         menu = Menu(
             Item("重新框选字幕区", do(lambda: app.trigger(reselect=True))),
-            Item("显示字幕区", do(lambda: app.show_region(from_menu=True))),
+            Item("显示字幕区", do(app.show_region)),
             Item("录制字幕", do(app.toggle_watch), checked=lambda i: app.watcher.running),
             Item("识别语言", Menu(lang_item("both", "双语"), lang_item("zh", "只留中文"), lang_item("foreign", "只留外文"))),
             Item("隐藏悬浮窗", do(app.toggle_bar), checked=lambda i: st["bar_hidden"]),

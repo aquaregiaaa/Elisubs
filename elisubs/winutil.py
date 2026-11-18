@@ -119,6 +119,14 @@ def make_noactivate(tk_toplevel):
     user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW)
 
 
+def click_through(tk_toplevel):
+    """鼠标穿透：点击和悬停都落到下面的窗口（窗口要先是分层窗口，tk 设过 -alpha 就是）。"""
+    GWL_EXSTYLE, WS_EX_LAYERED, WS_EX_TRANSPARENT = -20, 0x00080000, 0x00000020
+    hwnd = toplevel_hwnd(tk_toplevel)
+    style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+    user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED | WS_EX_TRANSPARENT)
+
+
 def exclude_from_capture(tk_toplevel):
     """截图时这个窗口是透明的（Win10 2004+）：提示框、悬浮条压在字幕上也不会被识别进去。"""
     user32.SetWindowDisplayAffinity(toplevel_hwnd(tk_toplevel), 0x11)  # WDA_EXCLUDEFROMCAPTURE
