@@ -124,7 +124,7 @@ def label_rec(size, count):
 
 
 class Bar:
-    def __init__(self, root, state, on_capture, on_region, on_record, on_lang):
+    def __init__(self, root, state, on_capture, on_region, on_record, on_lang, on_menu=None):
         self.root = root
         self.state = state
         self.scale = root.winfo_fpixels("1i") / 96
@@ -170,6 +170,8 @@ class Bar:
             h.bind("<ButtonPress-1>", self._drag_start)
             h.bind("<B1-Motion>", self._drag)
             h.bind("<ButtonRelease-1>", self._drag_end)
+            if on_menu:
+                h.bind("<ButtonRelease-3>", lambda e: on_menu())  # 右键伊丽莎白（或边框）弹托盘菜单
 
         # 系统截图里要能看到悬浮条（Kr 2026-11-17 要的），所以不设截图隐身；
         # 自己识别时改为把悬浮条所在的位置涂黑（见 capture.mask），rect 给录制线程读

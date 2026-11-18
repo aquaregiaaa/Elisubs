@@ -11,6 +11,7 @@ CONFIG_DEFAULTS = {
     "notion_parent_page": "",
     "hotkey_capture": "alt+s",
     "hotkey_reselect": "alt+d",
+    "hotkey_record": "alt+r",  # 开始 / 停止录制（Kr 2026-11-18 要的）
     "log_dir": "",             # 识别记录（md）存哪；空 = 程序旁边的 data/logs
 }
 

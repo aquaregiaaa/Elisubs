@@ -115,6 +115,13 @@ class Tray:
     def start(self):
         threading.Thread(target=self.icon.run, name="tray", daemon=True).start()
 
+    def popup(self):
+        """在鼠标位置弹出托盘菜单（右键伊丽莎白用）。
+        菜单必须在托盘线程里弹，所以给托盘窗口发一条「右键点了图标」的消息，和真的点托盘走同一条路。"""
+        from pystray._util import win32
+        if self.icon._hwnd:
+            win32.PostMessage(self.icon._hwnd, win32.WM_NOTIFY, 0, win32.WM_RBUTTONUP)
+
     def refresh(self):
         self.icon.icon = _icon(self.app.state["paused"], self.app.watcher.running)
         self.icon.update_menu()

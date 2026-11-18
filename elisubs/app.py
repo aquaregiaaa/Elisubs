@@ -58,7 +58,8 @@ class App:
                        on_capture=lambda: self.trigger(reselect=False),
                        on_region=lambda: self.trigger(reselect=True),
                        on_record=self.toggle_watch,
-                       on_lang=self.cycle_lang)
+                       on_lang=self.cycle_lang,
+                       on_menu=lambda: self.tray.popup())
 
     # ---------- 启动 / 退出 ----------
     def run(self):
@@ -111,9 +112,14 @@ class App:
         return [bar.rect] if bar and bar.rect else []
 
     def _make_hotkeys(self, cfg):
-        return Hotkeys({"capture": cfg["hotkey_capture"], "reselect": cfg["hotkey_reselect"]},
-                       lambda name: self.post(lambda: self.trigger(reselect=name == "reselect")),
-                       paused=self.state["paused"])
+        def on_hotkey(name):
+            if name == "record":
+                self.post(self.toggle_watch)
+            else:
+                self.post(lambda: self.trigger(reselect=name == "reselect"))
+        return Hotkeys({"capture": cfg["hotkey_capture"], "reselect": cfg["hotkey_reselect"],
+                        "record": cfg["hotkey_record"]},
+                       on_hotkey, paused=self.state["paused"])
 
     # ---------- 框选 ----------
     def _select(self, hwnd, then, on_cancel=None):
@@ -336,7 +342,8 @@ class App:
         self.settings.open()
 
     def _settings_saved(self, old, new):
-        if (old["hotkey_capture"], old["hotkey_reselect"]) != (new["hotkey_capture"], new["hotkey_reselect"]):
+        keys = ("hotkey_capture", "hotkey_reselect", "hotkey_record")
+        if any(old[k] != new[k] for k in keys):
             self.hot.stop()
             self.hot = self._make_hotkeys(new)
             self.hot.start()

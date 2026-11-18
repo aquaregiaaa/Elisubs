@@ -52,6 +52,7 @@ class Settings:
         row = self._section(body, row, "快捷键")
         row = self._field(body, row, "hotkey_capture", "识别一次", cfg["hotkey_capture"])
         row = self._field(body, row, "hotkey_reselect", "换字幕区", cfg["hotkey_reselect"])
+        row = self._field(body, row, "hotkey_record", "录制", cfg["hotkey_record"])
         row = self._section(body, row, "识别记录")
         current_dir = cfg["log_dir"].strip() or str(paths.LOGS)
         row = self._field(body, row, "log_dir", "保存位置", current_dir, button=("选择…", self._pick_dir))
@@ -116,13 +117,15 @@ class Settings:
 
     # ---------- 保存 ----------
     def _validate(self, v):
-        for key, name in (("hotkey_capture", "识别一次"), ("hotkey_reselect", "换字幕区")):
+        keys = (("hotkey_capture", "识别一次"), ("hotkey_reselect", "换字幕区"), ("hotkey_record", "录制"))
+        parsed = {}
+        for key, name in keys:
             try:
-                hotkey.parse(v[key])
+                parsed[key] = hotkey.parse(v[key])
             except ValueError as e:
                 return f"{name}的快捷键不对：{e}（写法例子：alt+s、ctrl+shift+f2）"
-        if hotkey.parse(v["hotkey_capture"]) == hotkey.parse(v["hotkey_reselect"]):
-            return "两个快捷键不能一样"
+        if len(set(parsed.values())) < len(parsed):
+            return "三个快捷键不能有一样的"
         d = Path(os.path.expandvars(v["log_dir"])) if v["log_dir"] else paths.LOGS
         try:
             d.mkdir(parents=True, exist_ok=True)
