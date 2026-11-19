@@ -144,6 +144,16 @@ def round_corners(tk_toplevel):
         pass
 
 
+def border_color(tk_toplevel, hex_color):
+    """Win11 给圆角窗口画的那圈系统边框改成指定颜色（默认是深灰，浅色窗口上很扎眼）。"""
+    r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
+    try:
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            wt.HWND(toplevel_hwnd(tk_toplevel)), 34, ctypes.byref(ctypes.c_uint(r | g << 8 | b << 16)), 4)
+    except Exception:
+        pass
+
+
 def on_some_monitor(x, y):
     return bool(user32.MonitorFromPoint(wt.POINT(int(x), int(y)), 0))  # 0 = 不在任何显示器上就返回空
 
