@@ -10,7 +10,7 @@
 import tkinter as tk
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageTk
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageTk
 
 from . import paths, winutil
 
@@ -25,7 +25,9 @@ SS = 4  # 超采样倍数
 TIP_BG = "#E9E9E9"
 TIP_FG = "#000000"
 TIP_LINE = "#CDCDCD"
-TIP_FONT = ("Microsoft YaHei UI", 9)  # Kr 2026-11-19：比 10 号小一档
+TIP_PT = 9  # 字号（磅）。Kr 2026-11-19：比 10 号小一档
+TIP_RADIUS = 8   # 圆角半径，= Win11 系统圆角（悬浮条用的那种）
+TIP_SHADOW = 4   # 阴影向外延伸的像素（系统圆角自带的是 30，Kr 嫌太大）
 TIP_DELAY = 500  # 鼠标停多久出气泡（毫秒），划过去不会乱闪
 LANG_TIPS = {"both": "识别双语", "zh": "仅识别中文", "foreign": "仅识别外语"}
 MASCOT = paths.ASSETS / "icon.png"
@@ -132,43 +134,67 @@ def label_rec(size, count):
 
 class Tip:
     """悬停气泡：鼠标在按钮上停一会儿，按钮正上方出现一行字（悬浮条靠屏幕顶时放下方）。
-    不抢焦点；截图时透明，录制时压在字幕上也不会被识别进去。"""
+    整个气泡（圆角、描边、字、阴影）用 PIL 画成一张半透明图，交给分层窗口显示：
+    系统圆角会自带 30 像素宽的阴影，小气泡上太大，所以不用系统的。
+    不抢焦点、鼠标穿透；截图时透明，录制时压在字幕上也不会被识别进去。"""
 
     def __init__(self, root, bar_win, scale):
         self.root, self.bar_win, self.scale = root, bar_win, scale
         self._job = None
+        self.text = ""
+        self.rect = None
+        self.font = ImageFont.truetype("msyh.ttc", round(TIP_PT * 96 / 72 * scale), index=1)  # 微软雅黑 UI
         w = self.win = tk.Toplevel(root)
         w.overrideredirect(True)
         w.attributes("-topmost", True)
-        w.configure(bg=TIP_LINE)  # 外圈 1 像素描边
-        self.label = tk.Label(w, bg=TIP_BG, fg=TIP_FG, font=TIP_FONT, padx=round(6 * scale), pady=round(1 * scale))
-        self.label.pack(padx=1, pady=1)
         w.withdraw()
         w.update_idletasks()
         winutil.make_noactivate(w)
-        winutil.round_corners(w)  # 和悬浮条同样的圆角
-        winutil.border_color(w, TIP_LINE)  # 系统画的那圈边框也用浅色描边
+        winutil.click_through(w, set_alpha=False)  # 画面由 update_layered 给
         winutil.exclude_from_capture(w)
 
     def schedule(self, widget, text):
         self.hide()
         self._job = self.root.after(TIP_DELAY, lambda: self._show(widget, text))
 
+    def render(self, text):
+        """画气泡，返回 (图, 阴影留边 m, 气泡宽, 气泡高)；气泡本体在图里从 (m, m) 开始。"""
+        s = self.scale
+        l, t, r, b = self.font.getbbox(text)
+        bw, bh = (r - l) + 2 * round(7 * s), round(25 * s)
+        m = round(TIP_SHADOW * s)
+        W, H = bw + 2 * m, bh + 2 * m
+        k = SS
+        big = Image.new("RGBA", (W * k, H * k), (0, 0, 0, 0))
+        box = (m * k, m * k, (m + bw) * k - 1, (m + bh) * k - 1)
+        rad = round(TIP_RADIUS * s) * k
+        dy = max(1, round(s)) * k
+        # 阴影：同形状往下挪 1 像素、模糊，很淡
+        sh = Image.new("L", big.size, 0)
+        ImageDraw.Draw(sh).rounded_rectangle((box[0], box[1] + dy, box[2], box[3] + dy), rad, fill=70)
+        sh = sh.filter(ImageFilter.GaussianBlur(m * k / 2.2))
+        big.putalpha(sh)
+        ImageDraw.Draw(big).rounded_rectangle(box, rad, fill=TIP_BG, outline=TIP_LINE, width=max(1, round(s)) * k)
+        img = big.resize((W, H), Image.LANCZOS)
+        ImageDraw.Draw(img).text((m + bw / 2, m + bh / 2), text, font=self.font, fill=TIP_FG, anchor="mm")
+        return img, m, bw, bh
+
     def _show(self, widget, text):
         self._job = None
-        w = self.win
-        self.label.configure(text=text)
-        w.update_idletasks()
-        tw, th = w.winfo_reqwidth(), w.winfo_reqheight()
+        self.text = text
+        img, m, bw, bh = self.render(text)
         gap = round(6 * self.scale)
-        x = widget.winfo_rootx() + widget.winfo_width() // 2 - tw // 2
-        y = self.bar_win.winfo_rooty() - th - gap
+        x = widget.winfo_rootx() + widget.winfo_width() // 2 - bw // 2
+        y = self.bar_win.winfo_rooty() - bh - gap
         _, top, _, _ = winutil.work_area_at(x, self.bar_win.winfo_rooty())
         if y < top:  # 上面放不下就放到悬浮条下面
             y = self.bar_win.winfo_rooty() + self.bar_win.winfo_height() + gap
-        w.geometry(f"+{x}+{y}")
+        self.rect = (x, y, x + bw, y + bh)  # 气泡本体（不含阴影）在屏幕上的位置
+        w = self.win
+        w.geometry(f"{img.width}x{img.height}+{x - m}+{y - m}")
         w.deiconify()
         w.attributes("-topmost", True)
+        winutil.update_layered(w, img, x - m, y - m)
 
     def hide(self):
         if self._job:

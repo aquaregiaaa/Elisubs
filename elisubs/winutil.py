@@ -119,15 +119,18 @@ def make_noactivate(tk_toplevel):
     user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW)
 
 
-def click_through(tk_toplevel):
+def click_through(tk_toplevel, set_alpha=True):
     """鼠标穿透：点击和悬停都落到下面的窗口。
     穿透要求是分层窗口；分层窗口必须设一次透明度，否则 Windows 根本不画它
-    （IsWindowVisible 照样是真，2026-11-19 就这样整个蓝框看不见）。"""
+    （IsWindowVisible 照样是真，2026-11-19 就这样整个蓝框看不见）。
+    之后要用 update_layered 自己给整张半透明图的窗口传 set_alpha=False：
+    设过透明度的窗口不再接受 update_layered（画面会变成默认的灰底）。"""
     GWL_EXSTYLE, WS_EX_LAYERED, WS_EX_TRANSPARENT, LWA_ALPHA = -20, 0x00080000, 0x00000020, 0x2
     hwnd = toplevel_hwnd(tk_toplevel)
     style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
     user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED | WS_EX_TRANSPARENT)
-    user32.SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA)
+    if set_alpha:
+        user32.SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA)
 
 
 def exclude_from_capture(tk_toplevel):
@@ -144,14 +147,64 @@ def round_corners(tk_toplevel):
         pass
 
 
-def border_color(tk_toplevel, hex_color):
-    """Win11 给圆角窗口画的那圈系统边框改成指定颜色（默认是深灰，浅色窗口上很扎眼）。"""
-    r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
-    try:
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(
-            wt.HWND(toplevel_hwnd(tk_toplevel)), 34, ctypes.byref(ctypes.c_uint(r | g << 8 | b << 16)), 4)
-    except Exception:
-        pass
+class _BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [("biSize", wt.DWORD), ("biWidth", wt.LONG), ("biHeight", wt.LONG), ("biPlanes", wt.WORD),
+                ("biBitCount", wt.WORD), ("biCompression", wt.DWORD), ("biSizeImage", wt.DWORD),
+                ("biXPelsPerMeter", wt.LONG), ("biYPelsPerMeter", wt.LONG), ("biClrUsed", wt.DWORD),
+                ("biClrImportant", wt.DWORD)]
+
+
+class _BLENDFUNCTION(ctypes.Structure):
+    _fields_ = [("BlendOp", ctypes.c_ubyte), ("BlendFlags", ctypes.c_ubyte),
+                ("SourceConstantAlpha", ctypes.c_ubyte), ("AlphaFormat", ctypes.c_ubyte)]
+
+
+_gdi32 = ctypes.WinDLL("gdi32")
+_gdi32.CreateCompatibleDC.argtypes = [ctypes.c_void_p]
+_gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
+_gdi32.CreateDIBSection.argtypes = [ctypes.c_void_p, ctypes.c_void_p, wt.UINT, ctypes.POINTER(ctypes.c_void_p),
+                                    ctypes.c_void_p, wt.DWORD]
+_gdi32.CreateDIBSection.restype = ctypes.c_void_p
+_gdi32.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+_gdi32.SelectObject.restype = ctypes.c_void_p
+_gdi32.DeleteObject.argtypes = [ctypes.c_void_p]
+_gdi32.DeleteDC.argtypes = [ctypes.c_void_p]
+user32.GetDC.argtypes = [wt.HWND]
+user32.GetDC.restype = ctypes.c_void_p
+user32.ReleaseDC.argtypes = [wt.HWND, ctypes.c_void_p]
+user32.UpdateLayeredWindow.argtypes = [wt.HWND, ctypes.c_void_p, ctypes.POINTER(wt.POINT), ctypes.POINTER(wt.SIZE),
+                                       ctypes.c_void_p, ctypes.POINTER(wt.POINT), wt.DWORD,
+                                       ctypes.POINTER(_BLENDFUNCTION), wt.DWORD]
+
+
+def update_layered(tk_toplevel, img, x, y):
+    """把一张 RGBA 图（带半透明）整张当成窗口画面，放在 (x, y)。
+    圆角、柔和阴影都画在图里，不用系统的（系统圆角自带的阴影有 30 像素宽，小窗口上太大）。"""
+    import numpy as np
+    hwnd = toplevel_hwnd(tk_toplevel)
+    GWL_EXSTYLE, WS_EX_LAYERED = -20, 0x00080000
+    style = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+    if not style & WS_EX_LAYERED:
+        user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED)
+    a = np.asarray(img.convert("RGBA"), dtype=np.uint16)
+    alpha = a[..., 3:4]
+    rgb = a[..., :3] * alpha // 255  # Windows 要预乘过透明度的颜色
+    bgra = np.dstack([rgb[..., 2], rgb[..., 1], rgb[..., 0], alpha[..., 0]]).astype(np.uint8)
+    w, h = img.size
+    bmi = _BITMAPINFOHEADER(ctypes.sizeof(_BITMAPINFOHEADER), w, -h, 1, 32, 0, 0, 0, 0, 0, 0)  # -h = 从上往下
+    screen = user32.GetDC(None)
+    mem = _gdi32.CreateCompatibleDC(screen)
+    bits = ctypes.c_void_p()
+    bmp = _gdi32.CreateDIBSection(mem, ctypes.byref(bmi), 0, ctypes.byref(bits), None, 0)
+    ctypes.memmove(bits, bgra.tobytes(), w * h * 4)
+    old = _gdi32.SelectObject(mem, bmp)
+    blend = _BLENDFUNCTION(0, 0, 255, 1)  # AC_SRC_OVER，用图里每个像素自己的透明度
+    user32.UpdateLayeredWindow(hwnd, screen, ctypes.byref(wt.POINT(x, y)), ctypes.byref(wt.SIZE(w, h)),
+                               mem, ctypes.byref(wt.POINT(0, 0)), 0, ctypes.byref(blend), 2)  # 2 = ULW_ALPHA
+    _gdi32.SelectObject(mem, old)
+    _gdi32.DeleteObject(bmp)
+    _gdi32.DeleteDC(mem)
+    user32.ReleaseDC(None, screen)
 
 
 def on_some_monitor(x, y):
